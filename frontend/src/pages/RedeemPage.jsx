@@ -23,11 +23,9 @@ function  RedeemPage(){
         setPin({...pin,[e.target.name]:e.target.value,})
         e.target.setCustomValidity('')
     }
-    function handleSubmit(event){
+ function handleSubmit(event){
         event.preventDefault()
-        var final_endpoint = endpoint.concat(pin.pin,'/')
-        console.log(final_endpoint)
-        axios.post(final_endpoint,pin)
+        axios.post(endpoint,pin)
             .then(
                 response => {
                     if(response.status === 200){
