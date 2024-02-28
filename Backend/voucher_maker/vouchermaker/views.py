@@ -1,8 +1,5 @@
 from datetime import datetime
 import json
-from urllib import request
-
-from rest_framework import generics
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
@@ -11,17 +8,30 @@ from .serializers import VoucherSerializer
 
 
 # Create your views here.
+@api_view(['POST'])
+def createvoucher(request):
+    if request.method == 'POST':
+        data = request.body.decode().strip()
+        data_json = json.loads(data)
+        voucher_serializer = VoucherSerializer(data=data_json, many=False)
+        vouchers = Voucher.objects.all()
+        voucher_pins = [voucher.pin for voucher in vouchers]
+        if voucher_serializer.initial_data['pin'] not in voucher_pins:
+            if voucher_serializer.is_valid():
+                voucher_serializer.save()
+                return Response(f"Voucher Added Successfully with: "
+                                f"Pin: {voucher_serializer.data['pin']}!"
+                                f"Exiry date: {voucher_serializer.data['expires_at']} "
+                                f"Redemptions: {voucher_serializer.data['redemptions']}")
 
-# Voucher Creation Method using API View Library
-class createvoucher(generics.CreateAPIView):
-    serializer_class = VoucherSerializer
+            else:
+                return Response('Failed to add Voucher!')
 
-    def get_queryset(self):
-        queryset = Voucher.objects.all()
-        return queryset.get(user=self.request.user)
+        else:
+            return Response('Pin Already Exists!, Please Try Another 4 digit Pin Number!')
 
 
-# Voucher List View using serializer
+# Voucher List View using serializer sets expired pins to Null so pins may be reused
 @api_view(['GET'])
 def get_vouchers(request):
     if request.method == 'GET':
@@ -30,49 +40,37 @@ def get_vouchers(request):
             if voucher.expires_at < datetime.now().date():
                 voucher.status = 'Expired'
                 voucher.redemptions = 0
+                voucher.pin = None
                 voucher.save()
+            elif voucher.redemptions <=0 :
+                voucher.status = 'Used'
+                voucher.pin = None
             if voucher.expires_at > datetime.now().date() and voucher.redemptions <= 0:
                 voucher.status = 'Used'
+                voucher.pin = None
                 voucher.save()
         serializer = VoucherSerializer(vouchers, many=True)
         return Response(serializer.data)
 
 
-# For future use
-# @api_view(['PATCH'])
-# def updatevoucher(request,pk):
-#     if request.method == 'PATCH':
-#         data = request.body.decode().strip()
-#         data_json = json.loads(data)
-#         voucher = Voucher.objects.get(id=pk)
-#         serializer = VoucherSerializer(voucher,data=data_json)
-#         if serializer.is_valid():
-#             serializer.save()
-#             return Response(serializer.data)
-#         else:
-#             return Response('Failed to Update')
-
-# @api_view(['DELETE'])
-# def deletevoucher(request,pk):
-#     if request.method == 'DELETE':
-#         voucher = Voucher.objects.get(id=pk)
-#         voucher.delete()
-#         return Response('Voucher Deleted Successfully')
-
 
 # Vocuher Redeem Method passing parameter into URI
 @api_view(['POST'])
-def redeemvoucher(request, pin):
+def redeemvoucher(request):
     if request.method == 'POST':
+        data = request.body.decode().strip()
+        data_json = json.loads(data)
+        print(data_json)
         try:
-            voucher = Voucher.objects.get(pin=str(pin))
+            voucher = Voucher.objects.get(pin=str(data_json['pin']))
         except Voucher.DoesNotExist:
             return Response('Voucher was not found, please check that that you have entered the correct pin.')
         else:
             if voucher:
                 day = datetime.now().date()
-                if voucher.redemptions > 0 and voucher.expires_at > day and voucher.status != 'Used':
+                if voucher.redemptions > 0 and voucher.expires_at >= day and voucher.status != 'Used':
                     voucher.redemptions -= 1
+                    voucher.save()
                     if voucher.redemptions == 0:
                         voucher.status = 'Used'
                         voucher.save()
@@ -87,9 +85,5 @@ def redeemvoucher(request, pin):
                             return Response(
                                 f'Voucher Redeemed Successfully. You may redeem again {voucher.redemptions} more time')
 
-                elif voucher.expires_at < day:
-                    return Response('Voucher has expired')
-                elif voucher.redemptions <= 0:
-                    voucher.status = 'Used'
-                    voucher.save()
-                    return Response('Voucher has already been redeemed completely!')
+                else:
+                    return Response('Voucher has already been redeemed or Voucher has expired! ')
