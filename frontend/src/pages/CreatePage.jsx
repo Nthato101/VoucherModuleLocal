@@ -49,21 +49,22 @@ function CreatePage(){
         e.target.setCustomValidity('')
     }
 
-    function handleSubmit(event){
+     function handleSubmit(event){
         event.preventDefault()
         axios.post(endpoint,voucher)
            .then(
                 response => {
-                    if(response.statusText === 'Created'){
+                    if(response){
                         console.log(response)
                         setMsg({...msg,
-                            message:'Voucher created successfully with:\n Pin: '+response.data.pin+'\n Expiry Date: '+response.data.expires_at+'  Redemptions : '+response.data.redemptions,})
+                            message:response.data,})
                         }
                 }
                 )
             .catch(
                 err => err
             )
+    }
     }
 
     // Voucher List Component render
